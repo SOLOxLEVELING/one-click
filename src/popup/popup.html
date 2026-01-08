@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One-Click Extract</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">🎯</div>
+      <h1>One-Click Extract</h1>
+    </header>
+
+    <!-- Format Selection -->
+    <section class="format-section">
+      <label class="section-label">Format</label>
+      <div class="format-buttons">
+        <button class="format-btn active" data-format="markdown">MD</button>
+        <button class="format-btn" data-format="json">JSON</button>
+        <button class="format-btn" data-format="both">Both</button>
+      </div>
+    </section>
+
+    <!-- Main Action -->
+    <section class="action-section">
+      <button id="extract-page" class="primary-btn">
+        <span class="btn-icon">📄</span>
+        <span class="btn-text">Extract This Page</span>
+      </button>
+    </section>
+
+    <!-- Sections (shown when detected) -->
+    <section id="sections-panel" class="sections-panel hidden">
+      <div class="section-header">
+        <span class="section-icon">📚</span>
+        <span class="section-title">Detected Sections</span>
+        <span id="section-count" class="section-count">(0)</span>
+      </div>
+      <div id="sections-list" class="sections-list">
+        <!-- Dynamically populated -->
+      </div>
+      <button id="extract-selected" class="secondary-btn">
+        <span class="btn-icon">📦</span>
+        <span class="btn-text">Extract Selected</span>
+      </button>
+    </section>
+
+    <!-- Status -->
+    <div id="status" class="status hidden">
+      <span class="status-icon">✓</span>
+      <span class="status-text"></span>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
