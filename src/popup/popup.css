@@ -188,6 +188,32 @@ body {
   font-size: 12px;
 }
 
+.select-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+}
+
+.select-all-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.select-all-row label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .sections-list {
   display: flex;
   flex-direction: column;
@@ -225,10 +251,26 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none; /* Let clicks pass through to parent */
 }
 
 .section-item.current {
   border: 1px solid var(--accent);
+}
+
+/* Selected state - checkbox is checked */
+.section-item:has(input:checked) {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid var(--accent);
+}
+
+.section-item:has(input:checked):hover {
+  background: rgba(99, 102, 241, 0.25);
+}
+
+/* Active press feedback */
+.section-item:active {
+  transform: scale(0.98);
 }
 
 /* Status */

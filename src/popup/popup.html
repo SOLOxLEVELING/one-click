@@ -24,14 +24,6 @@
       </div>
     </section>
 
-    <!-- Main Action -->
-    <section class="action-section">
-      <button id="extract-page" class="primary-btn">
-        <span class="btn-icon">📄</span>
-        <span class="btn-text">Extract This Page</span>
-      </button>
-    </section>
-
     <!-- Sections (shown when detected) -->
     <section id="sections-panel" class="sections-panel hidden">
       <div class="section-header">
@@ -39,12 +31,20 @@
         <span class="section-title">Detected Sections</span>
         <span id="section-count" class="section-count">(0)</span>
       </div>
+      <div class="select-all-row">
+        <input type="checkbox" id="select-all">
+        <label for="select-all">Select All</label>
+      </div>
       <div id="sections-list" class="sections-list">
         <!-- Dynamically populated -->
       </div>
-      <button id="extract-selected" class="secondary-btn">
-        <span class="btn-icon">📦</span>
-        <span class="btn-text">Extract Selected</span>
+    </section>
+
+    <!-- Single Extract Button -->
+    <section class="action-section">
+      <button id="extract-btn" class="primary-btn">
+        <span class="btn-icon">📄</span>
+        <span class="btn-text">Extract This Page</span>
       </button>
     </section>
 
