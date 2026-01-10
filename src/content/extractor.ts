@@ -344,10 +344,12 @@ function convertTableToMarkdown(table: Element): string {
 // Detect documentation sections for batch extraction
 function detectDocSections(): DetectedSection[] {
   const sections: DetectedSection[] = [];
-  const currentUrl = window.location.href;
+  const currentUrl = normalizeUrl(window.location.href);
+  const seen = new Set<string>();
   
-  // Common documentation sidebar/nav selectors
+  // Comprehensive sidebar selectors for popular documentation frameworks
   const sidebarSelectors = [
+    // === Generic patterns ===
     '.sidebar nav a',
     '.docs-sidebar a',
     '.toc a',
@@ -359,35 +361,186 @@ function detectDocSections(): DetectedSection[] {
     '.documentation-nav a',
     '.doc-nav a',
     '.docs-menu a',
+    '[data-docs-sidebar] a',
+    '.nav-link',
+    
+    // === Docusaurus (v1 and v2) ===
+    '.theme-doc-sidebar-menu a',
+    '.menu__link',
+    '.docSidebarContainer a',
+    '[class*="docSidebar"] a',
+    '.docs-sidebar-nav a',
+    
+    // === VitePress ===
+    '.VPSidebar a',
+    '.VPSidebarItem a',
+    '.vp-sidebar a',
+    '.VPNavBar a',
+    '.sidebar-links a',
+    
+    // === GitBook ===
+    '.gitbook-navigation a',
+    '[data-testid="toc"] a',
+    '.css-175oi2r a', // GitBook dynamic classes
+    '.sidebar-navigation a',
+    
+    // === Material for MkDocs ===
+    '.md-nav a',
+    '.md-sidebar a',
+    '.md-nav__link',
+    
+    // === ReadTheDocs / Sphinx ===
+    '.rst-content .toctree a',
+    '.wy-menu a',
+    '.wy-nav-side a',
+    '.sphinxsidebar a',
+    
+    // === Nextra ===
+    '[data-nextra-toc] a',
+    '.nextra-sidebar a',
+    'nav.nextra-toc a',
+    
+    // === Mintlify ===
+    '[data-sidebar] a',
+    '.mintlify-sidebar a',
+    
+    // === Notion-based docs ===
+    '.notion-table_of_contents a',
+    
+    // === Docsify ===
+    '.sidebar-nav a',
+    
+    // === Hugo Docsy ===
+    '#td-sidebar-menu a',
+    '.td-sidebar-nav a',
+    
+    // === Starlight (Astro) ===
+    '[data-sidebar] a',
+    '.sidebar-content a',
+    
+    // === Generic Bootstrap/Tailwind docs ===
+    '.bd-sidebar a',
+    '.docs-toc a',
+    '#docs-sidebar a',
+    '.doc-sidebar a',
   ];
 
+  // Strategy 1: Try specific selectors first
   for (const selector of sidebarSelectors) {
-    const links = document.querySelectorAll(selector);
-    if (links.length > 2) {
-      links.forEach(link => {
-        const anchor = link as HTMLAnchorElement;
-        const href = anchor.href;
-        const title = anchor.textContent?.trim();
-        
-        // Only include internal documentation links
-        if (href && title && href.startsWith(window.location.origin)) {
-          // Avoid duplicates
-          if (!sections.find(s => s.url === href)) {
-            sections.push({
-              title,
-              url: href,
-              isCurrentPage: href === currentUrl
-            });
-          }
-        }
-      });
-      
-      // If we found sections, stop looking
-      if (sections.length > 0) break;
+    try {
+      const links = document.querySelectorAll(selector);
+      if (links.length > 2) {
+        collectLinks(links, sections, seen, currentUrl);
+        if (sections.length > 3) break; // Found good results
+      }
+    } catch {
+      // Invalid selector, skip
     }
   }
 
+  // Strategy 2: Look for nav elements with many internal links
+  if (sections.length < 3) {
+    const navElements = document.querySelectorAll('nav, aside, [role="navigation"]');
+    navElements.forEach(nav => {
+      if (isSkippableNav(nav)) return;
+      const links = nav.querySelectorAll('a[href]');
+      if (links.length > 5) {
+        collectLinks(links, sections, seen, currentUrl);
+      }
+    });
+  }
+
+  // Strategy 3: Look for lists with internal links (common pattern)
+  if (sections.length < 3) {
+    const lists = document.querySelectorAll('ul, ol');
+    lists.forEach(list => {
+      const links = list.querySelectorAll('a[href]');
+      const internalLinks = Array.from(links).filter(a => {
+        const href = (a as HTMLAnchorElement).href;
+        return href && href.startsWith(window.location.origin);
+      });
+      
+      // If most links are internal and there are several, likely a nav
+      if (internalLinks.length > 5 && internalLinks.length / links.length > 0.8) {
+        collectLinks(links, sections, seen, currentUrl);
+      }
+    });
+  }
+
   return sections;
+}
+
+// Helper: Normalize URL for comparison (remove hash, trailing slash)
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    let pathname = parsed.pathname;
+    if (pathname.endsWith('/') && pathname.length > 1) {
+      pathname = pathname.slice(0, -1);
+    }
+    parsed.pathname = pathname;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+// Helper: Check if nav element should be skipped (header nav, footer, etc.)
+function isSkippableNav(el: Element): boolean {
+  const skipPatterns = ['header', 'footer', 'top-nav', 'main-nav', 'navbar', 'footer-nav'];
+  const className = el.className.toString().toLowerCase();
+  const id = el.id.toLowerCase();
+  const role = el.getAttribute('role');
+  
+  // Skip header/footer navigations
+  if (role === 'banner' || role === 'contentinfo') return true;
+  
+  for (const pattern of skipPatterns) {
+    if (className.includes(pattern) || id.includes(pattern)) return true;
+  }
+  
+  // Skip if parent is header/footer
+  const parent = el.parentElement;
+  if (parent) {
+    const parentTag = parent.tagName.toLowerCase();
+    if (parentTag === 'header' || parentTag === 'footer') return true;
+  }
+  
+  return false;
+}
+
+// Helper: Collect links from NodeList into sections array
+function collectLinks(
+  links: NodeListOf<Element>,
+  sections: DetectedSection[],
+  seen: Set<string>,
+  currentUrl: string
+): void {
+  links.forEach(link => {
+    const anchor = link as HTMLAnchorElement;
+    const href = anchor.href;
+    const title = anchor.textContent?.trim();
+    
+    if (!href || !title || title.length < 2) return;
+    
+    // Only internal links
+    if (!href.startsWith(window.location.origin)) return;
+    
+    // Skip anchors on same page, downloads, external protocols
+    if (href.includes('#') && normalizeUrl(href) === currentUrl) return;
+    if (href.match(/\.(pdf|zip|tar|gz|exe|dmg|pkg)$/i)) return;
+    
+    const normalizedHref = normalizeUrl(href);
+    if (seen.has(normalizedHref)) return;
+    
+    seen.add(normalizedHref);
+    sections.push({
+      title,
+      url: href,
+      isCurrentPage: normalizedHref === currentUrl
+    });
+  });
 }
 
 console.log('[One-Click Extract] Content script loaded');

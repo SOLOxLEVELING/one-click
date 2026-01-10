@@ -1,122 +1,166 @@
-# MCP Integration - Future Reference
+# MCP Integration
 
 > [!NOTE]
-> This is a reference document for Phase 2 implementation. Not part of MVP.
+> This MCP server is a **separate package** from the browser extension. Use the extension for quick manual extraction, use the MCP server for AI tool integration.
 
-## Overview
+## Quick Start
 
-Add a "Dev Mode" that sends extracted content directly to a local MCP server, enabling seamless integration with AI tools like OpenCode/Claude.
+The MCP server works with any MCP-compatible client via stdio transport.
 
-## Architecture
+### npx (No Installation)
 
-```mermaid
-sequenceDiagram
-    participant Ext as Browser Extension
-    participant MCP as Local MCP Server
-    participant AI as OpenCode/Claude
-
-    Ext->>MCP: POST /extract
-    Note over Ext,MCP: { content, format, url }
-    MCP->>MCP: Store in context
-    MCP-->>Ext: 200 OK
-    AI->>MCP: Query context
-    MCP-->>AI: Return extracted docs
+```bash
+npx one-click-mcp
 ```
 
-## Implementation Plan
+### Local Development
 
-### 1. Extension Side
-
-Add settings panel with:
-- Toggle: "Dev Mode" (off by default)
-- Input: "MCP Server URL" (default: `http://localhost:3000`)
-- Test connection button
-
-When Dev Mode is enabled:
-- Show additional "Send to AI" button
-- POST content to configured endpoint
-
-### 2. Local MCP Server
-
-Create a simple Node.js server:
-
-```typescript
-// server.ts
-import express from 'express';
-import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const contextStore: Map<string, ExtractedContent> = new Map();
-
-app.post('/extract', (req, res) => {
-  const { url, content, format, title } = req.body;
-  const id = crypto.randomUUID();
-  contextStore.set(id, { url, content, format, title, timestamp: Date.now() });
-  res.json({ success: true, id });
-});
-
-app.get('/context', (req, res) => {
-  res.json(Array.from(contextStore.values()));
-});
-
-app.get('/context/:id', (req, res) => {
-  const content = contextStore.get(req.params.id);
-  if (content) res.json(content);
-  else res.status(404).json({ error: 'Not found' });
-});
-
-app.listen(3000, () => console.log('MCP bridge running on :3000'));
+```bash
+cd mcp-server
+npm install && npm run build
+node dist/index.js
 ```
 
-### 3. OpenCode Integration
+---
 
-Add to MCP config (`~/.config/opencode/config.json`):
+## Client Configuration
+
+### Claude Desktop
+
+Add to `~/.config/claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "one-click-context": {
-      "command": "node",
-      "args": ["/path/to/one-click-mcp/server.js"]
+    "one-click": {
+      "command": "npx",
+      "args": ["-y", "one-click-mcp"]
     }
   }
 }
 ```
 
-## API Specification
-
-### POST /extract
+Or for local development:
 
 ```json
 {
-  "url": "https://docs.example.com/page",
-  "title": "Page Title",
-  "format": "markdown",
-  "content": "# Page Title\n\nExtracted content...",
-  "sections": ["intro", "installation"],
-  "extractedAt": "2026-01-08T19:00:00Z"
+  "mcpServers": {
+    "one-click": {
+      "command": "node",
+      "args": ["/absolute/path/to/one-click/mcp-server/dist/index.js"]
+    }
+  }
 }
 ```
 
-### GET /context
+### Cursor
 
-Returns all stored extractions for AI to query.
+Add to `.cursor/mcp.json` in your project or `~/.cursor/mcp.json` globally:
 
-### GET /context/:id
+```json
+{
+  "mcpServers": {
+    "one-click": {
+      "command": "npx",
+      "args": ["-y", "one-click-mcp"]
+    }
+  }
+}
+```
 
-Returns specific extraction by ID.
+### VSCode with Cline / Claude Dev
 
-## Security Considerations
+Add to your VSCode settings.json:
 
-- Only runs on localhost
-- No external network access
-- Content stored in memory only (clears on restart)
-- Optional: Add simple API key for extra security
+```json
+{
+  "cline.mcp.servers": {
+    "one-click": {
+      "command": "npx",
+      "args": ["-y", "one-click-mcp"]
+    }
+  }
+}
+```
 
-## Resources
+### Claude Code CLI
 
-- [MCP Specification](https://modelcontextprotocol.io/)
-- [Chrome Extension Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
+Add to `~/.config/codeium/config.json`:
+
+```json
+{
+  "mcp_servers": {
+    "one-click": {
+      "command": "npx",
+      "args": ["-y", "one-click-mcp"]
+    }
+  }
+}
+```
+
+---
+
+## Available Tools
+
+### `extract_documentation`
+
+Extracts documentation content from a URL as clean markdown.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `url` | string | Yes | The URL to extract |
+| `waitTime` | number | No | Additional wait time in ms after page load |
+
+**Example:**
+```
+Extract the documentation from https://react.dev/learn
+```
+
+### `list_documentation_sections`
+
+Detects documentation sections from sidebar/navigation.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `url` | string | Yes | Any page on the documentation site |
+
+**Example:**
+```
+List all sections available on https://docs.python.org/3/
+```
+
+### `extract_multiple_sections`
+
+Batch extract multiple documentation pages at once.
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `urls` | string[] | Yes | Array of URLs to extract |
+
+---
+
+## How It Works
+
+```mermaid
+sequenceDiagram
+    participant AI as AI Client (Cursor/Claude)
+    participant MCP as one-click-mcp
+    participant PUP as Puppeteer
+    participant WEB as Website
+
+    AI->>MCP: tools/call extract_documentation
+    MCP->>PUP: Launch headless Chrome
+    PUP->>WEB: Navigate to URL
+    WEB-->>PUP: Full JS-rendered page
+    PUP->>MCP: Extract content
+    MCP-->>AI: Markdown content
+```
+
+The server uses Puppeteer (headless Chrome) to:
+1. Navigate to the URL
+2. Wait for network idle (no requests for 500ms)
+3. Wait for JavaScript hydration
+4. Extract main content, skipping nav/footer/ads
+5. Convert to clean markdown
+
+This handles SPAs, Docusaurus, VitePress, GitBook, and other JS-rendered documentation sites that simple HTTP fetch cannot handle.
